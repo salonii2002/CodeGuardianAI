@@ -1,0 +1,97 @@
+
+export const findings = [
+  {
+    id: "SEC-1042",
+    title: "Hardcoded API secret",
+    description: "A possible credential is assigned directly in application code.",
+    severity: "High",
+    category: "Security",
+    agentId: "security",
+    repository: "payment-service",
+    pullRequest: 142,
+    file: "src/config/payment.js",
+    line: 24,
+    status: "Open",
+    evidence: "API_SECRET = 'demo-secret-value'",
+    recommendation: "Move credentials to secure environment configuration and rotate exposed secrets.",
+    cwe: "CWE-798",
+    confidence: 0.98
+  },
+  {
+    id: "SEC-1043",
+    title: "Possible SQL injection",
+    description: "A database query appears to include untrusted input.",
+    severity: "High",
+    category: "Security",
+    agentId: "security",
+    repository: "payment-service",
+    pullRequest: 142,
+    file: "src/database/user.py",
+    line: 81,
+    status: "Open",
+    evidence: "Query construction uses string concatenation.",
+    recommendation: "Use parameterized queries and validate user input.",
+    cwe: "CWE-89",
+    confidence: 0.93
+  },
+  {
+    id: "QUAL-208",
+    title: "Complex conditional logic",
+    description: "Nested conditions may make the function harder to maintain.",
+    severity: "Medium",
+    category: "Quality",
+    agentId: "quality",
+    repository: "backend-api",
+    pullRequest: 136,
+    file: "src/services/payment.py",
+    line: 56,
+    status: "Open",
+    evidence: "Multiple nested conditional branches.",
+    recommendation: "Extract validation and business rules into smaller functions.",
+    cwe: null,
+    confidence: 0.86
+  },
+  {
+    id: "TEST-104",
+    title: "Missing invalid-login test",
+    description: "The changed authentication flow may need an invalid credential test.",
+    severity: "Low",
+    category: "Testing",
+    agentId: "testing",
+    repository: "auth-service",
+    pullRequest: 139,
+    file: "tests/test_auth.py",
+    line: 1,
+    status: "Needs Review",
+    evidence: "No matching negative test found in the supplied sample context.",
+    recommendation: "Add a test for invalid credentials and expected authentication failure.",
+    cwe: null,
+    confidence: 0.82
+  },
+  {
+    id: "DOC-011",
+    title: "API documentation may be outdated",
+    description: "A changed endpoint may require an updated API description.",
+    severity: "Info",
+    category: "Documentation",
+    agentId: "documentation",
+    repository: "backend-api",
+    pullRequest: 136,
+    file: "docs/api.md",
+    line: 12,
+    status: "Open",
+    evidence: "The sample endpoint description does not mention the new response field.",
+    recommendation: "Review the endpoint documentation and add the response field.",
+    cwe: null,
+    confidence: 0.76
+  }
+];
+
+export const findingSummary = {
+  total: findings.length,
+  high: findings.filter((item) => item.severity === "High").length,
+  medium: findings.filter((item) => item.severity === "Medium").length,
+  low: findings.filter((item) => item.severity === "Low").length,
+  info: findings.filter((item) => item.severity === "Info").length,
+  open: findings.filter((item) => item.status === "Open").length
+};
