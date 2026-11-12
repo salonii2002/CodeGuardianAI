@@ -1,4 +1,6 @@
+
 import { useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   GitPullRequest,
   Search,
@@ -8,12 +10,13 @@ import {
   AlertTriangle,
   Eye,
   X,
-  Code2,
   Filter,
   Play,
   FileCode2,
   CheckCircle2,
-  RotateCcw
+  RotateCcw,
+  ArrowUpDown,
+  ArrowUpRight,
 } from "lucide-react";
 
 const initialPullRequests = [
@@ -21,6 +24,7 @@ const initialPullRequests = [
     id: 104,
     title: "Fix payment validation and transaction handling",
     repository: "payment-service",
+    owner: "demo-org",
     author: "alex-dev",
     branch: "fix/payment-validation",
     target: "main",
@@ -30,18 +34,21 @@ const initialPullRequests = [
     additions: 42,
     deletions: 16,
     updated: "20 minutes ago",
+    updatedOrder: 1,
     description:
       "Updates payment validation logic and improves transaction error handling.",
+    visibility: "Private",
     files: [
       "payments/views.py",
       "payments/validators.py",
-      "tests/test_payments.py"
-    ]
+      "tests/test_payments.py",
+    ],
   },
   {
     id: 103,
     title: "Add authentication token refresh",
     repository: "auth-service",
+    owner: "demo-org",
     author: "sarah-dev",
     branch: "feature/token-refresh",
     target: "main",
@@ -51,18 +58,17 @@ const initialPullRequests = [
     additions: 86,
     deletions: 21,
     updated: "1 hour ago",
+    updatedOrder: 2,
     description:
       "Introduces token refresh functionality and updates authentication middleware.",
-    files: [
-      "auth/token.py",
-      "auth/middleware.py",
-      "tests/test_token.py"
-    ]
+    visibility: "Private",
+    files: ["auth/token.py", "auth/middleware.py", "tests/test_token.py"],
   },
   {
     id: 102,
     title: "Update dashboard API response handling",
     repository: "backend-api",
+    owner: "demo-org",
     author: "john-dev",
     branch: "feature/api-response",
     target: "develop",
@@ -72,14 +78,17 @@ const initialPullRequests = [
     additions: 34,
     deletions: 8,
     updated: "3 hours ago",
+    updatedOrder: 3,
     description:
       "Improves API response formatting and handles unexpected response values.",
-    files: ["api/response.py", "api/routes.py"]
+    visibility: "Public",
+    files: ["api/response.py", "api/routes.py"],
   },
   {
     id: 101,
     title: "Improve user profile permissions",
     repository: "user-service",
+    owner: "demo-org",
     author: "maria-dev",
     branch: "security/profile-permissions",
     target: "main",
@@ -89,14 +98,16 @@ const initialPullRequests = [
     additions: 57,
     deletions: 12,
     updated: "Yesterday",
-    description:
-      "Updates permission checks for user profile operations.",
-    files: ["users/permissions.py", "users/views.py"]
+    updatedOrder: 4,
+    description: "Updates permission checks for user profile operations.",
+    visibility: "Private",
+    files: ["users/permissions.py", "users/views.py"],
   },
   {
     id: 100,
     title: "Add input validation to search endpoints",
     repository: "frontend-dashboard",
+    owner: "demo-org",
     author: "alex-dev",
     branch: "feature/search-validation",
     target: "main",
@@ -106,14 +117,17 @@ const initialPullRequests = [
     additions: 71,
     deletions: 19,
     updated: "Yesterday",
+    updatedOrder: 5,
     description:
       "Adds input validation and improves error handling for search requests.",
-    files: ["src/api/search.ts", "src/components/Search.tsx"]
+    visibility: "Public",
+    files: ["src/api/search.ts", "src/components/Search.tsx"],
   },
   {
     id: 99,
     title: "Update security scanning configuration",
     repository: "security-tools",
+    owner: "demo-org",
     author: "sarah-dev",
     branch: "chore/scanner-config",
     target: "main",
@@ -123,43 +137,63 @@ const initialPullRequests = [
     additions: 25,
     deletions: 6,
     updated: "2 days ago",
+    updatedOrder: 6,
     description:
       "Updates scanner configuration and improves security rule organization.",
-    files: [".semgrep.yml", "security/rules.yaml"]
-  }
+    visibility: "Private",
+    files: [".semgrep.yml", "security/rules.yaml"],
+  },
 ];
 
 const statusStyles = {
   Open: "border-blue-400/20 bg-blue-400/10 text-blue-300",
   "In Review": "border-amber-400/20 bg-amber-400/10 text-amber-300",
   Approved: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
-  Closed: "border-slate-400/20 bg-slate-400/10 text-slate-400"
+  Closed: "border-slate-400/20 bg-slate-400/10 text-slate-400",
 };
 
 const severityStyles = {
   High: "bg-rose-400/10 text-rose-300",
   Medium: "bg-amber-400/10 text-amber-300",
   Low: "bg-blue-400/10 text-blue-300",
-  None: "bg-slate-400/10 text-slate-400"
+  None: "bg-slate-400/10 text-slate-400",
 };
 
 function PullRequests() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const selectedRepository = location.state?.repository || "";
+
   const [pullRequests, setPullRequests] = useState(initialPullRequests);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [severityFilter, setSeverityFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("latest");
   const [selectedPR, setSelectedPR] = useState(null);
   const [notice, setNotice] = useState("");
 
-  const filteredPRs = useMemo(() => {
-    return pullRequests.filter((pr) => {
-      const searchText = search.toLowerCase();
+  const repositoryPRs = useMemo(() => {
+    if (!selectedRepository) return pullRequests;
 
+    const repositoryName = selectedRepository.split("/").pop().toLowerCase();
+
+    return pullRequests.filter(
+      (pr) => pr.repository.toLowerCase() === repositoryName
+    );
+  }, [pullRequests, selectedRepository]);
+
+  const filteredPRs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    const result = repositoryPRs.filter((pr) => {
       const matchesSearch =
-        pr.title.toLowerCase().includes(searchText) ||
-        pr.repository.toLowerCase().includes(searchText) ||
-        String(pr.id).includes(searchText) ||
-        pr.author.toLowerCase().includes(searchText);
+        pr.title.toLowerCase().includes(query) ||
+        pr.repository.toLowerCase().includes(query) ||
+        pr.owner.toLowerCase().includes(query) ||
+        String(pr.id).includes(query) ||
+        pr.author.toLowerCase().includes(query) ||
+        pr.branch.toLowerCase().includes(query);
 
       const matchesStatus =
         statusFilter === "All" || pr.status === statusFilter;
@@ -169,40 +203,60 @@ function PullRequests() {
 
       return matchesSearch && matchesStatus && matchesSeverity;
     });
-  }, [pullRequests, search, statusFilter, severityFilter]);
 
-  const counts = {
-    total: pullRequests.length,
-    open: pullRequests.filter((pr) => pr.status === "Open").length,
-    review: pullRequests.filter((pr) => pr.status === "In Review").length,
-    high: pullRequests.filter((pr) => pr.severity === "High").length
-  };
+    return [...result].sort((a, b) => {
+      if (sortBy === "findings") return b.findings - a.findings;
+      if (sortBy === "severity") {
+        const rank = { High: 3, Medium: 2, Low: 1, None: 0 };
+        return rank[b.severity] - rank[a.severity];
+      }
+      return a.updatedOrder - b.updatedOrder;
+    });
+  }, [repositoryPRs, search, statusFilter, severityFilter, sortBy]);
+
+  const counts = useMemo(
+    () => ({
+      total: repositoryPRs.length,
+      open: repositoryPRs.filter((pr) => pr.status === "Open").length,
+      review: repositoryPRs.filter((pr) => pr.status === "In Review").length,
+      high: repositoryPRs.filter((pr) => pr.severity === "High").length,
+    }),
+    [repositoryPRs]
+  );
 
   const resetFilters = () => {
     setSearch("");
     setStatusFilter("All");
     setSeverityFilter("All");
+    setSortBy("latest");
   };
 
-  const simulateAnalysis = (id) => {
+  const startReview = (pr) => {
+    navigate("/app/live-analysis", {
+      state: {
+        repository: `${pr.owner}/${pr.repository}`,
+        pullRequest: pr,
+        demo: true,
+      },
+    });
+  };
+
+  const simulateReviewStatus = (id) => {
     setPullRequests((current) =>
       current.map((pr) =>
-        pr.id === id
-          ? { ...pr, status: "In Review" }
-          : pr
+        pr.id === id ? { ...pr, status: "In Review" } : pr
       )
     );
 
-    setSelectedPR(null);
-    setNotice(
-      `Pull request #${id} moved to In Review in the local demo.`
+    setSelectedPR((current) =>
+      current?.id === id ? { ...current, status: "In Review" } : current
     );
+
+    setNotice(`PR #${id} status updated in the local demo.`);
   };
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-7">
-
-      {/* HEADER */}
       <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium text-cyan-400">
@@ -225,14 +279,37 @@ function PullRequests() {
         </div>
       </section>
 
-      {/* NOTIFICATION */}
+      {selectedRepository && (
+        <section className="flex flex-col justify-between gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <GitBranch size={18} className="text-cyan-400" />
+            <div>
+              <p className="text-xs text-slate-500">Selected repository</p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {selectedRepository}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate("/app/repositories")}
+            className="text-xs font-semibold text-cyan-400 hover:text-cyan-300"
+          >
+            Change repository
+          </button>
+        </section>
+      )}
+
       {notice && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4 text-sm text-emerald-300">
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4 text-sm text-emerald-300"
+        >
           <span className="flex items-center gap-2">
             <CheckCircle2 size={17} />
             {notice}
           </span>
-
           <button
             type="button"
             onClick={() => setNotice("")}
@@ -244,9 +321,7 @@ function PullRequests() {
         </div>
       )}
 
-      {/* SUMMARY CARDS */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
         <SummaryCard
           title="Total PRs"
           value={counts.total}
@@ -254,7 +329,6 @@ function PullRequests() {
           color="text-blue-400"
           description="Sample pull requests"
         />
-
         <SummaryCard
           title="Open"
           value={counts.open}
@@ -262,7 +336,6 @@ function PullRequests() {
           color="text-cyan-400"
           description="Awaiting review"
         />
-
         <SummaryCard
           title="In Review"
           value={counts.review}
@@ -270,7 +343,6 @@ function PullRequests() {
           color="text-amber-400"
           description="Under review"
         />
-
         <SummaryCard
           title="High severity PRs"
           value={counts.high}
@@ -278,35 +350,31 @@ function PullRequests() {
           color="text-rose-400"
           description="Need closer attention"
         />
-
       </section>
 
-      {/* FILTERS */}
-      <section className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-[#111B2E] p-4 lg:flex-row">
-
+      <section className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-[#111B2E] p-4 xl:flex-row">
         <div className="relative flex-1">
           <Search
             size={17}
             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
           />
-
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by PR title, repository, number or author..."
+            placeholder="Search by PR title, repository, number, author or branch..."
+            aria-label="Search pull requests"
             className="w-full rounded-xl border border-white/10 bg-[#0B1423] py-3 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
           />
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-
+        <div className="grid gap-3 sm:grid-cols-2 xl:flex">
           <div className="flex items-center gap-2">
             <Filter size={15} className="text-slate-500" />
-
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-xl border border-white/10 bg-[#0B1423] px-3 py-3 text-sm text-slate-300 outline-none focus:border-cyan-400/40"
+              aria-label="Filter by status"
+              className="w-full rounded-xl border border-white/10 bg-[#0B1423] px-3 py-3 text-sm text-slate-300 outline-none focus:border-cyan-400/40"
             >
               <option value="All">All statuses</option>
               <option value="Open">Open</option>
@@ -319,13 +387,25 @@ function PullRequests() {
           <select
             value={severityFilter}
             onChange={(event) => setSeverityFilter(event.target.value)}
-            className="rounded-xl border border-white/10 bg-[#0B1423] px-3 py-3 text-sm text-slate-300 outline-none focus:border-cyan-400/40"
+            aria-label="Filter by severity"
+            className="w-full rounded-xl border border-white/10 bg-[#0B1423] px-3 py-3 text-sm text-slate-300 outline-none focus:border-cyan-400/40"
           >
             <option value="All">All severities</option>
             <option value="High">High</option>
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
             <option value="None">No findings</option>
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+            aria-label="Sort pull requests"
+            className="w-full rounded-xl border border-white/10 bg-[#0B1423] px-3 py-3 text-sm text-slate-300 outline-none focus:border-cyan-400/40"
+          >
+            <option value="latest">Latest activity</option>
+            <option value="findings">Most findings</option>
+            <option value="severity">Highest severity</option>
           </select>
 
           <button
@@ -336,60 +416,48 @@ function PullRequests() {
             <RotateCcw size={14} />
             Reset
           </button>
-
         </div>
       </section>
 
-      {/* PULL REQUEST TABLE */}
       <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#111B2E]">
-
         <div className="flex flex-col justify-between gap-2 border-b border-white/[0.08] p-5 sm:flex-row sm:items-center">
           <div>
-            <h2 className="font-semibold text-white">
-              All pull requests
-            </h2>
-
+            <h2 className="font-semibold text-white">Pull request list</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Showing {filteredPRs.length} of {pullRequests.length} sample pull requests
+              Showing {filteredPRs.length} of {repositoryPRs.length} sample pull requests
             </p>
           </div>
-
-          <span className="text-xs text-slate-500">
-            <Code2 size={14} className="mr-1 inline" />
-            Latest activity first
+          <span className="flex items-center gap-1 text-xs text-slate-500">
+            <ArrowUpDown size={14} />
+            Sorted by{" "}
+            {sortBy === "latest"
+              ? "latest activity"
+              : sortBy === "findings"
+                ? "findings"
+                : "severity"}
           </span>
         </div>
 
         {filteredPRs.length > 0 ? (
           <div className="divide-y divide-white/[0.06]">
-
             {filteredPRs.map((pr) => (
               <article
-                key={pr.id}
+                key={`${pr.repository}-${pr.id}`}
                 className="p-5 transition hover:bg-white/[0.02]"
               >
                 <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
-
                   <div className="min-w-0 flex-1">
-
                     <div className="flex flex-wrap items-center gap-2">
                       <GitPullRequest size={17} className="text-emerald-400" />
-
-                      <h3 className="font-semibold text-white">
-                        {pr.title}
-                      </h3>
-
-                      <span className="text-xs text-slate-500">
-                        #{pr.id}
-                      </span>
+                      <h3 className="font-semibold text-white">{pr.title}</h3>
+                      <span className="text-xs text-slate-500">#{pr.id}</span>
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
-                      <span>{pr.repository}</span>
+                      <span>{pr.owner}/{pr.repository}</span>
                       <span>·</span>
                       <span>{pr.author}</span>
                       <span>·</span>
-
                       <span className="flex items-center gap-1">
                         <GitBranch size={12} />
                         {pr.branch} → {pr.target}
@@ -397,35 +465,32 @@ function PullRequests() {
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
-
-                      <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${statusStyles[pr.status]}`}>
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${statusStyles[pr.status]}`}
+                      >
                         {pr.status}
                       </span>
-
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${severityStyles[pr.severity]}`}>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${severityStyles[pr.severity]}`}
+                      >
                         {pr.severity === "None"
                           ? "No findings"
                           : `${pr.severity} severity`}
                       </span>
-
                       <span className="flex items-center gap-1.5 text-xs text-slate-400">
                         <AlertTriangle size={13} />
                         {pr.findings} findings
                       </span>
-
                       <span className="text-xs text-slate-500">
                         +{pr.additions} / -{pr.deletions}
                       </span>
-
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between gap-4 xl:justify-end">
-
                     <span className="text-[11px] text-slate-500">
                       {pr.updated}
                     </span>
-
                     <button
                       type="button"
                       onClick={() => setSelectedPR(pr)}
@@ -434,25 +499,24 @@ function PullRequests() {
                       <Eye size={14} />
                       View details
                     </button>
-
                   </div>
                 </div>
               </article>
             ))}
-
           </div>
         ) : (
           <div className="px-5 py-16 text-center">
             <Search size={30} className="mx-auto text-slate-500" />
-
             <h3 className="mt-4 font-semibold text-white">
-              No pull requests found
+              {selectedRepository
+                ? "No sample PRs for this repository"
+                : "No pull requests found"}
             </h3>
-
             <p className="mt-2 text-sm text-slate-500">
-              Change your search or filters and try again.
+              {selectedRepository
+                ? "This repository is not included in the current demo dataset. Real PRs will appear after backend integration."
+                : "Change your search or filters and try again."}
             </p>
-
             <button
               type="button"
               onClick={resetFilters}
@@ -462,60 +526,53 @@ function PullRequests() {
             </button>
           </div>
         )}
-
       </section>
 
-      {/* DEMO NOTICE */}
       <section className="rounded-2xl border border-cyan-400/15 bg-[#10243A]/60 p-5">
         <div className="flex items-start gap-3">
-
           <div className="rounded-xl bg-cyan-400/10 p-3">
             <FileCode2 size={20} className="text-cyan-300" />
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-white">
-              Pull request preview
+              Demo data notice
             </h3>
-
             <p className="mt-1 text-xs leading-6 text-slate-400">
-              These pull requests are sample records for the frontend demo.
-              GitHub synchronization, webhook events and real code analysis
-              are not connected yet.
+              These pull requests are sample records. GitHub synchronization,
+              webhook events, and real code analysis are not connected yet.
             </p>
           </div>
-
         </div>
       </section>
 
-      {/* DETAILS MODAL */}
       {selectedPR && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setSelectedPR(null);
-            }
+            if (event.target === event.currentTarget) setSelectedPR(null);
           }}
         >
-
-          <div className="my-auto w-full max-w-2xl rounded-2xl border border-white/10 bg-[#111B2E] shadow-2xl">
-
-            {/* MODAL HEADER */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pr-dialog-title"
+            className="my-auto w-full max-w-2xl rounded-2xl border border-white/10 bg-[#111B2E] shadow-2xl"
+          >
             <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] p-5">
-
               <div>
                 <div className="flex items-center gap-2 text-xs text-emerald-400">
                   <GitPullRequest size={15} />
                   PULL REQUEST #{selectedPR.id}
                 </div>
-
-                <h2 className="mt-3 text-lg font-bold text-white">
+                <h2
+                  id="pr-dialog-title"
+                  className="mt-3 text-lg font-bold text-white"
+                >
                   {selectedPR.title}
                 </h2>
-
                 <p className="mt-2 text-xs text-slate-500">
-                  {selectedPR.repository} · Created by {selectedPR.author}
+                  {selectedPR.owner}/{selectedPR.repository} · Created by{" "}
+                  {selectedPR.author}
                 </p>
               </div>
 
@@ -527,45 +584,32 @@ function PullRequests() {
               >
                 <X size={19} />
               </button>
-
             </div>
 
-            {/* MODAL BODY */}
             <div className="space-y-5 p-5">
-
               <p className="text-sm leading-6 text-slate-400">
                 {selectedPR.description}
               </p>
 
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-
-                <DetailCard
-                  label="Status"
-                  value={selectedPR.status}
-                />
-
-                <DetailCard
-                  label="Severity"
-                  value={selectedPR.severity}
-                />
-
-                <DetailCard
-                  label="Findings"
-                  value={selectedPR.findings}
-                />
-
+                <DetailCard label="Status" value={selectedPR.status} />
+                <DetailCard label="Severity" value={selectedPR.severity} />
+                <DetailCard label="Findings" value={selectedPR.findings} />
                 <DetailCard
                   label="Files changed"
                   value={selectedPR.files.length}
                 />
-
               </div>
 
-              {/* CHANGED FILES */}
               <div>
-                <h3 className="mb-3 text-sm font-semibold text-white">
-                  Changed files
-                </h3>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">
+                    Changed files
+                  </h3>
+                  <span className="text-xs text-slate-500">
+                    {selectedPR.files.length} files
+                  </span>
+                </div>
 
                 <div className="space-y-2">
                   {selectedPR.files.map((file) => (
@@ -574,7 +618,6 @@ function PullRequests() {
                       className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-[#0B1423] px-3 py-2.5"
                     >
                       <FileCode2 size={15} className="text-cyan-400" />
-
                       <span className="break-all font-mono text-xs text-slate-300">
                         {file}
                       </span>
@@ -583,9 +626,34 @@ function PullRequests() {
                 </div>
               </div>
 
-              {/* MODAL ACTIONS */}
-              <div className="flex flex-col-reverse gap-3 border-t border-white/[0.08] pt-5 sm:flex-row sm:justify-between">
+              <div className="grid grid-cols-2 gap-3 rounded-xl border border-white/[0.06] bg-[#0B1423] p-4">
+                <div>
+                  <p className="text-[10px] text-slate-500">Base branch</p>
+                  <p className="mt-1 text-xs text-slate-200">
+                    {selectedPR.target}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Source branch</p>
+                  <p className="mt-1 break-all text-xs text-slate-200">
+                    {selectedPR.branch}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Additions</p>
+                  <p className="mt-1 text-xs text-emerald-400">
+                    +{selectedPR.additions}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Deletions</p>
+                  <p className="mt-1 text-xs text-rose-400">
+                    -{selectedPR.deletions}
+                  </p>
+                </div>
+              </div>
 
+              <div className="flex flex-col-reverse gap-3 border-t border-white/[0.08] pt-5 sm:flex-row sm:justify-between">
                 <button
                   type="button"
                   onClick={() => setSelectedPR(null)}
@@ -594,26 +662,34 @@ function PullRequests() {
                   Close
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => simulateAnalysis(selectedPR.id)}
-                  disabled={selectedPR.status === "In Review"}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Play size={15} />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {selectedPR.status !== "In Review" && (
+                    <button
+                      type="button"
+                      onClick={() => simulateReviewStatus(selectedPR.id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-white/5"
+                    >
+                      <CheckCircle2 size={15} />
+                      Mark in review
+                    </button>
+                  )}
 
-                  {selectedPR.status === "In Review"
-                    ? "Already in review"
-                    : "Simulate review status"}
-                </button>
-
+                  <button
+                    type="button"
+                    onClick={() => startReview(selectedPR)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  >
+                    <Play size={15} />
+                    Open analysis
+                    <ArrowUpRight size={14} />
+                  </button>
+                </div>
               </div>
 
               <p className="text-[11px] leading-5 text-slate-500">
-                Demo interaction only. This changes the local display status;
-                it does not execute AI agents or security scanners.
+                Demo interaction only. Status changes are local and are not
+                sent to GitHub.
               </p>
-
             </div>
           </div>
         </div>
@@ -622,7 +698,6 @@ function PullRequests() {
       <p className="pb-3 text-center text-[10px] text-slate-600">
         CodeGuardian AI · Pull request workspace · Illustrative sample data
       </p>
-
     </div>
   );
 }
@@ -630,20 +705,12 @@ function PullRequests() {
 function SummaryCard({ title, value, icon: Icon, color, description }) {
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-[#111B2E] p-5">
-
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-400">{title}</p>
         <Icon size={20} className={color} />
       </div>
-
-      <h2 className="mt-3 text-3xl font-bold text-white">
-        {value}
-      </h2>
-
-      <p className="mt-1 text-xs text-slate-500">
-        {description}
-      </p>
-
+      <h2 className="mt-3 text-3xl font-bold text-white">{value}</h2>
+      <p className="mt-1 text-xs text-slate-500">{description}</p>
     </div>
   );
 }
@@ -651,11 +718,8 @@ function SummaryCard({ title, value, icon: Icon, color, description }) {
 function DetailCard({ label, value }) {
   return (
     <div className="rounded-xl bg-[#0B1423] p-3">
-      <p className="text-[10px] text-slate-500">
-        {label}
-      </p>
-
-      <p className="mt-2 text-sm font-semibold text-white">
+      <p className="text-[10px] text-slate-500">{label}</p>
+      <p className="mt-2 break-words text-sm font-semibold text-white">
         {value}
       </p>
     </div>

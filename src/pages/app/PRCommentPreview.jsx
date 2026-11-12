@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
-  
   ArrowLeft,
   Check,
   CheckCircle2,
@@ -27,7 +26,7 @@ const initialComments = [
     line: 24,
     agent: "Security Agent",
     status: "Pending",
-    code: `const API_SECRET = "sk_live_example_secret";`,
+    code: 'const API_SECRET = "sk_live_example_secret";',
     suggestion:
       "Move the API secret into an environment variable. Never store production credentials directly in source code.",
     explanation:
@@ -43,7 +42,7 @@ const initialComments = [
     line: 81,
     agent: "Security Agent",
     status: "Pending",
-    code: `query = "SELECT * FROM users WHERE id = " + user_id`,
+    code: 'query = "SELECT * FROM users WHERE id = " + user_id',
     suggestion:
       "Use parameterized SQL queries instead of string concatenation.",
     explanation:
@@ -59,7 +58,7 @@ const initialComments = [
     line: 56,
     agent: "Quality Agent",
     status: "Pending",
-    code: `return response["payment_status"]`,
+    code: 'return response["payment_status"]',
     suggestion:
       "Validate the response structure before accessing payment_status.",
     explanation:
@@ -75,7 +74,7 @@ const initialComments = [
     line: 18,
     agent: "Test Gap Agent",
     status: "Pending",
-    code: `def test_login_success():`,
+    code: "def test_login_success():",
     suggestion:
       "Add a test for invalid credentials and unsuccessful login attempts.",
     explanation:
@@ -90,6 +89,13 @@ const severityStyles = {
   High: "border-orange-500/30 bg-orange-500/10 text-orange-400",
   Medium: "border-amber-500/30 bg-amber-500/10 text-amber-400",
   Low: "border-blue-500/30 bg-blue-500/10 text-blue-400"
+};
+
+const statusStyles = {
+  Pending: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+  Approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  Rejected: "border-red-500/30 bg-red-500/10 text-red-400",
+  Published: "border-blue-500/30 bg-blue-500/10 text-blue-400"
 };
 
 function PRCommentPreview() {
@@ -115,6 +121,10 @@ function PRCommentPreview() {
     (comment) => comment.status === "Pending"
   ).length;
 
+  const publishedCount = comments.filter(
+    (comment) => comment.status === "Published"
+  ).length;
+
   const approvedComments = useMemo(
     () => comments.filter((comment) => comment.status === "Approved"),
     [comments]
@@ -132,9 +142,13 @@ function PRCommentPreview() {
 
   const publishApproved = () => {
     if (approvedCount === 0) {
-      setPublishMessage("Approve at least one comment before publishing.");
+      setPublishMessage(
+        "Approve at least one comment before publishing."
+      );
       return;
     }
+
+    const count = approvedCount;
 
     setComments((previous) =>
       previous.map((comment) =>
@@ -145,7 +159,7 @@ function PRCommentPreview() {
     );
 
     setPublishMessage(
-      `${approvedCount} approved comment(s) marked as published in this demo.`
+      `${count} comment(s) successfully marked as published in this demo. No GitHub comments were actually sent.`
     );
   };
 
@@ -155,16 +169,8 @@ function PRCommentPreview() {
     setPublishMessage("");
   };
 
-  const statusStyles = {
-    Pending: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-    Approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-    Rejected: "border-red-500/30 bg-red-500/10 text-red-400",
-    Published: "border-blue-500/30 bg-blue-500/10 text-blue-400"
-  };
-
   return (
     <div className="mx-auto max-w-7xl space-y-7">
-
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
@@ -195,11 +201,16 @@ function PRCommentPreview() {
 
       {/* Demo notice */}
       <div className="flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/[0.06] p-4">
-        <MessageSquare size={19} className="mt-0.5 shrink-0 text-blue-400" />
+        <MessageSquare
+          size={19}
+          className="mt-0.5 shrink-0 text-blue-400"
+        />
+
         <div>
           <p className="text-sm font-semibold text-blue-300">
             Human approval workflow
           </p>
+
           <p className="mt-1 text-xs leading-5 text-slate-400">
             Suggested comments must be reviewed by a developer. This is a
             frontend demonstration: approving and publishing comments does
@@ -216,6 +227,7 @@ function PRCommentPreview() {
               <span className="rounded-lg bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-400">
                 PR #142
               </span>
+
               <span className="rounded-lg border border-[#334760] px-2.5 py-1 text-xs text-slate-400">
                 Open
               </span>
@@ -238,7 +250,7 @@ function PRCommentPreview() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         {[
           {
             label: "Total comments",
@@ -267,6 +279,13 @@ function PRCommentPreview() {
             icon: XCircle,
             color: "text-red-400",
             bg: "bg-red-500/10"
+          },
+          {
+            label: "Published",
+            value: publishedCount,
+            icon: Send,
+            color: "text-blue-400",
+            bg: "bg-blue-500/10"
           }
         ].map((item) => {
           const Icon = item.icon;
@@ -276,13 +295,19 @@ function PRCommentPreview() {
               key={item.label}
               className="rounded-2xl border border-[#263750] bg-[#111B2E] p-5"
             >
-              <div className={`inline-flex rounded-xl p-2.5 ${item.bg} ${item.color}`}>
+              <div
+                className={`inline-flex rounded-xl p-2.5 ${item.bg} ${item.color}`}
+              >
                 <Icon size={19} />
               </div>
+
               <p className="mt-4 text-2xl font-bold text-white">
                 {item.value}
               </p>
-              <p className="mt-1 text-xs text-slate-400">{item.label}</p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                {item.label}
+              </p>
             </div>
           );
         })}
@@ -290,11 +315,13 @@ function PRCommentPreview() {
 
       {/* Main content */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.85fr_1.4fr]">
-
         {/* Comment list */}
         <section className="overflow-hidden rounded-2xl border border-[#263750] bg-[#111B2E]">
           <div className="border-b border-[#263750] p-5">
-            <h2 className="font-semibold text-white">Suggested comments</h2>
+            <h2 className="font-semibold text-white">
+              Suggested comments
+            </h2>
+
             <p className="mt-1 text-xs text-slate-500">
               Select a comment to inspect its details.
             </p>
@@ -381,12 +408,13 @@ function PRCommentPreview() {
               </div>
 
               <div className="space-y-5 p-5">
-
                 {/* File information */}
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#263750] bg-[#080D18] p-3">
                   <div className="flex min-w-0 items-center gap-2 text-sm text-slate-300">
                     <Code2 size={16} className="shrink-0 text-blue-400" />
-                    <span className="truncate">{selectedComment.file}</span>
+                    <span className="truncate">
+                      {selectedComment.file}
+                    </span>
                   </div>
 
                   <span className="text-xs text-slate-500">
@@ -405,6 +433,7 @@ function PRCommentPreview() {
                       <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
                       <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
                       <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+
                       <span className="ml-2 text-[10px] text-slate-500">
                         Source code · Sample
                       </span>
@@ -481,6 +510,26 @@ function PRCommentPreview() {
                         Reject comment
                       </button>
                     </div>
+                  ) : selectedComment.status === "Published" ? (
+                    <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.06] p-4">
+                      <p className="text-sm font-medium text-blue-300">
+                        Published in demo
+                      </p>
+
+                      <p className="mt-1 text-xs leading-5 text-slate-400">
+                        This comment has been marked as published locally.
+                        It has not been sent to GitHub.
+                      </p>
+
+                      <button
+                        onClick={() =>
+                          updateStatus(selectedComment.id, "Pending")
+                        }
+                        className="mt-3 text-sm font-medium text-blue-400 hover:text-blue-300"
+                      >
+                        Reset decision
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex flex-col justify-between gap-3 rounded-xl border border-[#263750] bg-[#080D18] p-4 sm:flex-row sm:items-center">
                       <p className="text-sm text-slate-400">
@@ -518,7 +567,8 @@ function PRCommentPreview() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-400">
-              {approvedCount} approved · {pendingCount} pending · {rejectedCount} rejected
+              {approvedCount} approved · {pendingCount} pending ·{" "}
+              {rejectedCount} rejected · {publishedCount} published
             </p>
 
             <p className="mt-1 text-xs text-slate-500">
@@ -558,6 +608,7 @@ function PRCommentPreview() {
                     <p className="truncate text-sm text-slate-300">
                       {comment.title}
                     </p>
+
                     <p className="mt-1 truncate text-xs text-slate-500">
                       {comment.file}
                     </p>
@@ -582,7 +633,7 @@ function PRCommentPreview() {
           </button>
 
           <p className="text-xs text-slate-600">
-            GitHub publishing will require backend integration and authorization.
+            GitHub publishing requires backend integration and authorization.
           </p>
         </div>
       </section>

@@ -1,5 +1,6 @@
 
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { getDashboardSummary } from "../../services/dashboard";
 import { useNavigate } from "react-router-dom";
 import {
   GitBranch,
@@ -22,24 +23,13 @@ import {
   Eye,
   Sparkles,
   RefreshCw,
-
   Bug,
   FileCode2,
-
 } from "lucide-react";
 
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell
-} from "recharts";
+const DashboardCharts = lazy(
+  () => import("../../components/dashboard/DashboardCharts")
+);
 
 const weeklyData = [
   { day: "Mon", findings: 12, resolved: 8 },
@@ -48,26 +38,13 @@ const weeklyData = [
   { day: "Thu", findings: 24, resolved: 16 },
   { day: "Fri", findings: 19, resolved: 15 },
   { day: "Sat", findings: 28, resolved: 21 },
-  { day: "Sun", findings: 15, resolved: 12 }
-];
-
-const monthlyData = [
-  { day: "Week 1", findings: 42, resolved: 31 },
-  { day: "Week 2", findings: 48, resolved: 38 },
-  { day: "Week 3", findings: 39, resolved: 32 },
-  { day: "Week 4", findings: 51, resolved: 43 }
-];
-
-const quarterlyData = [
-  { day: "Month 1", findings: 145, resolved: 112 },
-  { day: "Month 2", findings: 162, resolved: 138 },
-  { day: "Month 3", findings: 151, resolved: 129 }
+  { day: "Sun", findings: 15, resolved: 12 },
 ];
 
 const severityData = [
   { name: "High", value: 10, color: "#F97316" },
   { name: "Medium", value: 4, color: "#FBBF24" },
-  { name: "Low", value: 1, color: "#60A5FA" }
+  { name: "Low", value: 1, color: "#60A5FA" },
 ];
 
 const pullRequests = [
@@ -81,7 +58,7 @@ const pullRequests = [
     risk: "High",
     findings: 5,
     time: "12 min ago",
-    branch: "feature/payment-api"
+    branch: "feature/payment-api",
   },
   {
     id: 139,
@@ -93,7 +70,7 @@ const pullRequests = [
     risk: "Low",
     findings: 0,
     time: "38 min ago",
-    branch: "fix/auth-middleware"
+    branch: "fix/auth-middleware",
   },
   {
     id: 136,
@@ -105,7 +82,7 @@ const pullRequests = [
     risk: "Medium",
     findings: 3,
     time: "1 hour ago",
-    branch: "feature/api-response"
+    branch: "feature/api-response",
   },
   {
     id: 132,
@@ -117,8 +94,8 @@ const pullRequests = [
     risk: "Medium",
     findings: 2,
     time: "3 hours ago",
-    branch: "feature/notifications"
-  }
+    branch: "feature/notifications",
+  },
 ];
 
 const findings = [
@@ -133,11 +110,10 @@ const findings = [
     type: "Secret exposure",
     description:
       "A possible API secret is written directly inside the source code. Anyone with access to this repository may be able to read and misuse it.",
-    evidence:
-      'const API_SECRET = "sk_test_demo_secret_12345";',
+    evidence: 'const API_SECRET = "sk_test_demo_secret_12345";',
     recommendation:
       "Remove the secret from source code, rotate the exposed credential, and load the new value from a secure environment variable.",
-    agent: "Security Agent"
+    agent: "Security Agent",
   },
   {
     id: "SEC-1039",
@@ -150,11 +126,10 @@ const findings = [
     type: "SQL injection",
     description:
       "User-controlled input appears to be combined directly with a SQL query. This can allow an attacker to modify the intended database operation.",
-    evidence:
-      'query = "SELECT * FROM users WHERE id = " + user_id',
+    evidence: 'query = "SELECT * FROM users WHERE id = " + user_id',
     recommendation:
       "Use parameterized SQL queries instead of joining user input into SQL strings.",
-    agent: "Security Agent"
+    agent: "Security Agent",
   },
   {
     id: "SEC-1035",
@@ -167,11 +142,10 @@ const findings = [
     type: "Unhandled exception",
     description:
       "The payment request does not handle all expected failure cases. This may result in unclear errors or incomplete payment processing.",
-    evidence:
-      "response = payment_gateway.charge(amount)",
+    evidence: "response = payment_gateway.charge(amount)",
     recommendation:
       "Add appropriate exception handling, validate the gateway response, and log failures without exposing sensitive information.",
-    agent: "Code Quality Agent"
+    agent: "Code Quality Agent",
   },
   {
     id: "SEC-1028",
@@ -184,12 +158,11 @@ const findings = [
     type: "Missing test",
     description:
       "The current test suite does not appear to cover an invalid authentication attempt.",
-    evidence:
-      "No matching test case found in the sample test suite.",
+    evidence: "No matching test case found in the sample test suite.",
     recommendation:
       "Add a test that verifies invalid credentials are rejected and that the response does not reveal sensitive authentication details.",
-    agent: "Test Gap Agent"
-  }
+    agent: "Test Gap Agent",
+  },
 ];
 
 const agents = [
@@ -200,7 +173,7 @@ const agents = [
     color: "text-red-400",
     bg: "bg-red-500/10",
     status: "Active",
-    progress: 100
+    progress: 100,
   },
   {
     name: "Code Quality Agent",
@@ -209,7 +182,7 @@ const agents = [
     color: "text-blue-400",
     bg: "bg-blue-500/10",
     status: "Beta",
-    progress: 78
+    progress: 78,
   },
   {
     name: "Test Gap Agent",
@@ -218,7 +191,7 @@ const agents = [
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
     status: "Beta",
-    progress: 65
+    progress: 65,
   },
   {
     name: "Documentation Agent",
@@ -227,13 +200,142 @@ const agents = [
     color: "text-amber-400",
     bg: "bg-amber-500/10",
     status: "Beta",
-    progress: 82
-  }
+    progress: 82,
+  },
 ];
+
+function mapDashboardResponse(data) {
+  const agentStyles = {
+    "Security Agent": {
+      icon: ShieldCheck,
+      color: "text-red-400",
+      bg: "bg-red-500/10",
+    },
+    "Code Quality Agent": {
+      icon: Code2,
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
+    },
+    "Test Gap Agent": {
+      icon: TestTube2,
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+    },
+    "Documentation Agent": {
+      icon: FileText,
+      color: "text-amber-400",
+      bg: "bg-amber-500/10",
+    },
+  };
+
+  return {
+    stats: {
+      repositories: data.stats?.repositories ?? 0,
+      pull_requests: data.stats?.pull_requests ?? 0,
+      security_findings: data.stats?.security_findings ?? 0,
+      completed_reviews: data.stats?.completed_reviews ?? 0,
+    },
+
+    activity: Array.isArray(data.activity) ? data.activity : [],
+
+    severity: (Array.isArray(data.severity) ? data.severity : []).map(
+      (item) => ({
+        ...item,
+        value: Number(item.value) || 0,
+        color:
+          item.name === "High"
+            ? "#F97316"
+            : item.name === "Medium"
+              ? "#FBBF24"
+              : "#60A5FA",
+      })
+    ),
+
+    recent_pull_requests: (
+      Array.isArray(data.recent_pull_requests)
+        ? data.recent_pull_requests
+        : []
+    ).map((pr) => ({
+      ...pr,
+      id: pr.number ?? pr.id,
+      author: pr.author || "Unknown",
+      initials: (pr.author || "Unknown")
+        .split(" ")
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
+      status:
+        pr.status === "Completed"
+          ? "Review completed"
+          : pr.status === "In Review" || pr.status === "Pending"
+            ? "Review required"
+            : pr.status || "Pending",
+      risk: pr.risk || "Low",
+      findings: pr.findings ?? 0,
+      time: pr.time || "Recently updated",
+      branch: pr.branch || "Not provided",
+      title: pr.title || "Untitled pull request",
+      repository: pr.repository || "Unknown repository",
+    })),
+
+    priority_findings: (
+      Array.isArray(data.priority_findings) ? data.priority_findings : []
+    ).map((finding) => ({
+      ...finding,
+      id: finding.id || "SEC-UNKNOWN",
+      title: finding.title || "Untitled finding",
+      severity: finding.severity || "Low",
+      category: finding.category || finding.type || "Security",
+      type: finding.type || finding.category || "Code finding",
+      description: finding.description || "No description is available.",
+      evidence: finding.evidence || "Evidence is not available.",
+      recommendation:
+        finding.recommendation ||
+        "Review this finding and apply the recommended security practices.",
+      line: finding.line ?? 0,
+      repository: finding.repository || "Demo repository",
+      file: finding.file || "File not provided",
+      agent: finding.agent || "Security Agent",
+    })),
+
+    agents: (Array.isArray(data.agents) ? data.agents : []).map((agent) => ({
+      ...agent,
+      ...(agentStyles[agent.name] || {
+        icon: Bot,
+        color: "text-blue-400",
+        bg: "bg-blue-500/10",
+      }),
+      status:
+        agent.status === "Completed" ? "Active" : agent.status || "Available",
+      progress: Math.min(100, Math.max(0, Number(agent.progress) || 0)),
+    })),
+
+    source: data.source || "demo",
+  };
+}
 
 function Dashboard() {
   const navigate = useNavigate();
 
+  const [dashboardData, setDashboardData] = useState({
+    stats: {
+      repositories: 12,
+      pull_requests: 48,
+      security_findings: 15,
+      completed_reviews: 36,
+    },
+    activity: weeklyData,
+    severity: severityData,
+    recent_pull_requests: pullRequests,
+    priority_findings: findings,
+    agents,
+    source: "demo",
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [selectedPR, setSelectedPR] = useState(null);
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [search, setSearch] = useState("");
@@ -241,64 +343,106 @@ function Dashboard() {
   const [timeRange, setTimeRange] = useState("7 days");
   const [notice, setNotice] = useState("");
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const rangeMap = {
+      "7 days": "7d",
+      "30 days": "30d",
+      "90 days": "90d",
+    };
+
+    const loadData = async () => {
+      setIsLoading(true);
+      setLoadError("");
+
+      try {
+        const response = await getDashboardSummary(
+          rangeMap[timeRange] || "7d"
+        );
+
+        if (!cancelled) {
+          setDashboardData(mapDashboardResponse(response));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error.message || "Unable to load dashboard data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [timeRange, refreshKey]);
+
   const filteredFindings = useMemo(() => {
-  return findings.filter((finding) => {
-    const matchesSearch =
-      finding.title.toLowerCase().includes(search.toLowerCase()) ||
-      finding.repository.toLowerCase().includes(search.toLowerCase()) ||
-      finding.file.toLowerCase().includes(search.toLowerCase());
+    return dashboardData.priority_findings.filter((finding) => {
+      const searchText = search.toLowerCase();
 
-    const matchesSeverity =
-      severityFilter === "All" ||
-      finding.severity === severityFilter;
+      const matchesSearch =
+        finding.title.toLowerCase().includes(searchText) ||
+        finding.repository.toLowerCase().includes(searchText) ||
+        finding.file.toLowerCase().includes(searchText);
 
-    return matchesSearch && matchesSeverity;
-  });
-}, [search, severityFilter]);
+      const matchesSeverity =
+        severityFilter === "All" || finding.severity === severityFilter;
 
-const chartData =
-  timeRange === "7 days"
-    ? weeklyData
-    : timeRange === "30 days"
-    ? monthlyData
-    : quarterlyData;
+      return matchesSearch && matchesSeverity;
+    });
+  }, [search, severityFilter, dashboardData.priority_findings]);
+
+  const chartData = dashboardData.activity;
+  const severityChartData = dashboardData.severity;
+
+  const totalFindings = severityChartData.reduce(
+    (total, item) => total + Number(item.value || 0),
+    0
+  );
+
   const stats = [
     {
       label: "Repositories",
-      value: "12",
+      value: String(dashboardData.stats.repositories ?? 0),
       change: "+2 this month",
       icon: GitBranch,
       color: "text-blue-400",
       bg: "bg-blue-500/10",
-      route: "/app/repositories"
+      route: "/app/repositories",
     },
     {
       label: "Pull Requests",
-      value: "48",
+      value: String(dashboardData.stats.pull_requests ?? 0),
       change: "+12 this week",
       icon: GitPullRequest,
       color: "text-cyan-400",
       bg: "bg-cyan-500/10",
-      route: "/app/pull-requests"
+      route: "/app/pull-requests",
     },
     {
       label: "Security Findings",
-      value: "15",
+      value: String(dashboardData.stats.security_findings ?? 0),
       change: "3 require attention",
       icon: ShieldAlert,
       color: "text-orange-400",
       bg: "bg-orange-500/10",
-      route: "/app/review-reports"
+      route: "/app/review-reports",
     },
     {
       label: "Completed Reviews",
-      value: "36",
+      value: String(dashboardData.stats.completed_reviews ?? 0),
       change: "+8 this week",
       icon: CheckCircle2,
       color: "text-emerald-400",
       bg: "bg-emerald-500/10",
-      route: "/app/review-reports"
-    }
+      route: "/app/review-reports",
+    },
   ];
 
   const showNotice = (message) => {
@@ -306,13 +450,13 @@ const chartData =
   };
 
   const handleRefresh = () => {
-  setSearch("");
-  setSeverityFilter("All");
-  setTimeRange("7 days");
-  setSelectedPR(null);
-  setSelectedFinding(null);
-
-  showNotice("Dashboard filters have been reset.");
+    setSearch("");
+    setSeverityFilter("All");
+    setTimeRange("7 days");
+    setSelectedPR(null);
+    setSelectedFinding(null);
+    setRefreshKey((previous) => previous + 1);
+    showNotice("Dashboard data refresh requested.");
   };
 
   const closeModals = () => {
@@ -321,11 +465,10 @@ const chartData =
   };
 
   return (
-    <div className="space-y-7">
-
+    <div className="min-w-0 w-full space-y-6 overflow-x-clip sm:space-y-7">
       {/* PAGE HEADER */}
-      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
-        <div>
+      <div className="flex min-w-0 flex-col justify-between gap-4 xl:flex-row xl:items-center">
+        <div className="min-w-0">
           <div className="mb-2 flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-400">
@@ -344,10 +487,15 @@ const chartData =
 
         <div className="flex flex-wrap gap-3">
           <button
-            onClick={handleRefresh}            className="inline-flex items-center gap-2 rounded-lg border border-[#263750] bg-[#111B2E] px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-[#17243A]"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#263750] bg-[#111B2E] px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-[#17243A] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw size={16} />
-            Refresh
+            <RefreshCw
+              size={16}
+              className={isLoading ? "animate-spin" : ""}
+            />
+            {isLoading ? "Refreshing..." : "Refresh"}
           </button>
 
           <button
@@ -366,10 +514,11 @@ const chartData =
           <Sparkles size={20} />
         </div>
 
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-blue-200">
             Interactive demonstration workspace
           </p>
+
           <p className="mt-1 text-xs leading-5 text-slate-400">
             This dashboard currently uses sample repository and review data.
             Live GitHub synchronization and scanner execution will be connected
@@ -377,23 +526,42 @@ const chartData =
           </p>
         </div>
 
-        <span className="w-fit rounded-md border border-blue-400/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300">
+        <span className="w-fit shrink-0 rounded-md border border-blue-400/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300">
           Demo environment
         </span>
       </div>
 
       {/* NOTICE */}
       {notice && (
-        <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
+        >
           <span>{notice}</span>
-          <button onClick={() => setNotice("")}>
+          <button
+            onClick={() => setNotice("")}
+            aria-label="Dismiss notification"
+          >
             <X size={16} />
           </button>
         </div>
       )}
 
+      {/* API ERROR */}
+      {loadError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300"
+        >
+          Demo service could not load new data. Showing available sample data.
+          <p className="mt-1 break-words text-xs text-amber-200/70">
+            {loadError}
+          </p>
+        </div>
+      )}
+
       {/* STAT CARDS */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
 
@@ -401,10 +569,12 @@ const chartData =
             <button
               key={stat.label}
               onClick={() => navigate(stat.route)}
-              className="group rounded-xl border border-[#263750] bg-[#111B2E] p-5 text-left transition duration-200 hover:-translate-y-1 hover:border-blue-500/40 hover:bg-[#142139]"
+              className="group min-w-0 rounded-xl border border-[#263750] bg-[#111B2E] p-4 text-left transition duration-200 hover:border-blue-500/40 hover:bg-[#142139] sm:p-5 sm:hover:-translate-y-1"
             >
               <div className="flex items-center justify-between">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.bg} ${stat.color}`}>
+                <div
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.bg} ${stat.color}`}
+                >
                   <Icon size={21} />
                 </div>
 
@@ -414,12 +584,10 @@ const chartData =
                 />
               </div>
 
-              <p className="mt-5 text-sm text-slate-400">
-                {stat.label}
-              </p>
+              <p className="mt-5 text-sm text-slate-400">{stat.label}</p>
 
               <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
-                <h2 className="text-3xl font-bold text-white">
+                <h2 className="text-2xl font-bold text-white sm:text-3xl">
                   {stat.value}
                 </h2>
 
@@ -433,193 +601,44 @@ const chartData =
       </div>
 
       {/* CHARTS */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-
-        {/* ACTIVITY CHART */}
-        <div className="rounded-xl border border-[#263750] bg-[#111B2E] p-5 xl:col-span-2">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-white">
-                Review activity
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Findings detected compared with resolved findings
-              </p>
-            </div>
-
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="rounded-lg border border-[#263750] bg-[#17243A] px-3 py-2 text-xs text-slate-300 outline-none focus:border-blue-500"
-            >
-              <option>7 days</option>
-              <option>30 days</option>
-              <option>90 days</option>
-            </select>
-          </div>
-
-          <div className="mt-6 h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>                <defs>
-                  <linearGradient id="findingGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                  </linearGradient>
-
-                  <linearGradient id="resolvedGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-
-                <CartesianGrid
-                  stroke="#263750"
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-
-                <XAxis
-                  dataKey="day"
-                  stroke="#64748B"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11 }}
-                />
-
-                <YAxis
-                  stroke="#64748B"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11 }}
-                />
-
-                <Tooltip
-                  contentStyle={{
-                    background: "#17243A",
-                    border: "1px solid #334155",
-                    borderRadius: "10px",
-                    color: "#fff"
-                  }}
-                />
-
-                <Area
-                  type="monotone"
-                  dataKey="findings"
-                  name="Detected"
-                  stroke="#3B82F6"
-                  strokeWidth={2.5}
-                  fill="url(#findingGradient)"
-                />
-
-                <Area
-                  type="monotone"
-                  dataKey="resolved"
-                  name="Resolved"
-                  stroke="#10B981"
-                  strokeWidth={2.5}
-                  fill="url(#resolvedGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-5">
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />
-              Findings detected
-            </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Findings resolved
-            </div>
-          </div>
-        </div>
-
-        {/* SEVERITY CHART */}
-        <div className="rounded-xl border border-[#263750] bg-[#111B2E] p-5">
-          <div>
-            <h2 className="font-semibold text-white">
-              Finding severity
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Distribution of open findings
-            </p>
-          </div>
-
-          <div className="relative mt-3 h-[190px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={severityData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={58}
-                  outerRadius={82}
-                  paddingAngle={5}
-                  stroke="none"
-                >
-                  {severityData.map((item) => (
-                    <Cell key={item.name} fill={item.color} />
-                  ))}
-                </Pie>
-
-                <Tooltip
-                  contentStyle={{
-                    background: "#17243A",
-                    border: "1px solid #334155",
-                    borderRadius: "10px",
-                    color: "#fff"
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-3xl font-bold text-white">15</span>
-              <span className="text-[10px] text-slate-500">Total findings</span>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {severityData.map((item) => (
-              <div
-                key={item.name}
-                className="flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-sm text-slate-400">
-                    {item.name}
-                  </span>
-                </div>
-
-                <span className="text-sm font-semibold text-white">
-                  {item.value}
-                </span>
+      <Suspense
+        fallback={
+          <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-3">
+            <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-[#263750] bg-[#111B2E] p-5 xl:col-span-2">
+              <div className="text-center">
+                <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                <p className="mt-3 text-xs text-slate-400">
+                  Loading activity chart...
+                </p>
               </div>
-            ))}
-          </div>
+            </div>
 
-          <button
-            onClick={() => navigate("/app/review-reports")}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-[#263750] py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-[#17243A]"
-          >
-            Explore all findings
-            <ArrowUpRight size={14} />
-          </button>
-        </div>
-      </div>
+            <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-[#263750] bg-[#111B2E] p-5">
+              <div className="text-center">
+                <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                <p className="mt-3 text-xs text-slate-400">
+                  Loading severity chart...
+                </p>
+              </div>
+            </div>
+          </div>
+        }
+      >
+        <DashboardCharts
+          chartData={chartData}
+          severityChartData={severityChartData}
+          totalFindings={totalFindings}
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          onExploreFindings={() => navigate("/app/review-reports")}
+        />
+      </Suspense>
 
       {/* PULL REQUESTS */}
-      <section className="overflow-hidden rounded-xl border border-[#263750] bg-[#111B2E]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263750] p-5">
+      <section className="min-w-0 overflow-hidden rounded-xl border border-[#263750] bg-[#111B2E]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263750] p-4 sm:p-5">
           <div>
-            <h2 className="font-semibold text-white">
-              Recent pull requests
-            </h2>
+            <h2 className="font-semibold text-white">Recent pull requests</h2>
             <p className="mt-1 text-xs text-slate-500">
               Latest pull requests in your workspace
             </p>
@@ -634,7 +653,7 @@ const chartData =
           </button>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-w-full overflow-x-auto overscroll-x-contain">
           <table className="w-full min-w-[760px] text-left">
             <thead className="bg-[#0D1728] text-[10px] uppercase tracking-wider text-slate-500">
               <tr>
@@ -649,7 +668,7 @@ const chartData =
             </thead>
 
             <tbody className="divide-y divide-[#263750]">
-              {pullRequests.map((pr) => (
+              {dashboardData.recent_pull_requests.map((pr) => (
                 <tr
                   key={pr.id}
                   className="transition hover:bg-[#17243A]/60"
@@ -683,13 +702,15 @@ const chartData =
                   </td>
 
                   <td className="px-5 py-4">
-                    <span className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
-                      pr.status === "Review completed"
-                        ? "bg-emerald-500/10 text-emerald-400"
-                        : pr.status === "In progress"
-                        ? "bg-blue-500/10 text-blue-400"
-                        : "bg-amber-500/10 text-amber-400"
-                    }`}>
+                    <span
+                      className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
+                        pr.status === "Review completed"
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : pr.status === "In progress"
+                            ? "bg-blue-500/10 text-blue-400"
+                            : "bg-amber-500/10 text-amber-400"
+                      }`}
+                    >
                       {pr.status}
                     </span>
                   </td>
@@ -716,20 +737,30 @@ const chartData =
                   </td>
                 </tr>
               ))}
+
+              {dashboardData.recent_pull_requests.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-5 py-10 text-center text-sm text-slate-500"
+                  >
+                    No pull requests are available.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </section>
 
       {/* FINDINGS AND AGENTS */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-
+      <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-3">
         {/* SECURITY FINDINGS */}
-      <section
-        id="dashboard-findings"
-        className="rounded-xl border border-[#263750] bg-[#111B2E] xl:col-span-2"
-          >          
-          <div className="border-b border-[#263750] p-5">
+        <section
+          id="dashboard-findings"
+          className="min-w-0 rounded-xl border border-[#263750] bg-[#111B2E] xl:col-span-2"
+        >
+          <div className="border-b border-[#263750] p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-white">
@@ -745,28 +776,32 @@ const chartData =
               </span>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <div className="relative flex-1">
+            <div className="mt-4 flex min-w-0 flex-col gap-3 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
                 <Search
                   size={16}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
                 />
+
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search findings, files or repositories..."
+                  aria-label="Search security findings"
                   className="w-full rounded-lg border border-[#263750] bg-[#0D1728] py-2.5 pl-9 pr-3 text-xs text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
                 />
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <Filter
                   size={14}
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
                 />
+
                 <select
                   value={severityFilter}
                   onChange={(e) => setSeverityFilter(e.target.value)}
+                  aria-label="Filter findings by severity"
                   className="w-full rounded-lg border border-[#263750] bg-[#0D1728] py-2.5 pl-9 pr-7 text-xs text-slate-300 outline-none focus:border-blue-500 sm:w-36"
                 >
                   <option>All</option>
@@ -784,37 +819,41 @@ const chartData =
                 <button
                   key={finding.id}
                   onClick={() => setSelectedFinding(finding)}
-                  className="flex w-full items-start gap-3 p-5 text-left transition hover:bg-[#17243A]/60"
+                  className="flex w-full min-w-0 items-start gap-2 p-3 text-left transition hover:bg-[#17243A]/60 sm:gap-3 sm:p-5"
                 >
-                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                    finding.severity === "High"
-                      ? "bg-orange-500/10 text-orange-400"
-                      : finding.severity === "Medium"
-                      ? "bg-amber-500/10 text-amber-400"
-                      : "bg-blue-500/10 text-blue-400"
-                  }`}>
-                    {finding.category === "Secret Detection"
-                      ? <LockKeyhole size={17} />
-                      : finding.category === "Test Gap"
-                      ? <TestTube2 size={17} />
-                      : <Bug size={17} />}
+                  <div
+                    className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                      finding.severity === "High"
+                        ? "bg-orange-500/10 text-orange-400"
+                        : finding.severity === "Medium"
+                          ? "bg-amber-500/10 text-amber-400"
+                          : "bg-blue-500/10 text-blue-400"
+                    }`}
+                  >
+                    {finding.category === "Secret Detection" ? (
+                      <LockKeyhole size={17} />
+                    ) : finding.category === "Test Gap" ? (
+                      <TestTube2 size={17} />
+                    ) : (
+                      <Bug size={17} />
+                    )}
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-white">
+                      <p className="min-w-0 text-sm font-semibold text-white [overflow-wrap:anywhere]">
                         {finding.title}
                       </p>
                       <RiskBadge risk={finding.severity} />
                     </div>
 
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 break-words text-xs text-slate-500">
                       {finding.id} · {finding.repository} · {finding.category}
                     </p>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
                       <FileCode2 size={13} />
-                      <span>{finding.file}</span>
+                      <span className="break-all">{finding.file}</span>
                       {finding.line > 0 && (
                         <span className="text-slate-600">
                           :{finding.line}
@@ -854,12 +893,10 @@ const chartData =
         </section>
 
         {/* AI AGENTS */}
-        <section className="rounded-xl border border-[#263750] bg-[#111B2E]">
+        <section className="min-w-0 rounded-xl border border-[#263750] bg-[#111B2E]">
           <div className="flex items-center justify-between border-b border-[#263750] p-5">
             <div>
-              <h2 className="font-semibold text-white">
-                AI review agents
-              </h2>
+              <h2 className="font-semibold text-white">AI review agents</h2>
               <p className="mt-1 text-xs text-slate-500">
                 Review team overview
               </p>
@@ -871,13 +908,15 @@ const chartData =
           </div>
 
           <div className="space-y-5 p-5">
-            {agents.map((agent) => {
+            {dashboardData.agents.map((agent) => {
               const Icon = agent.icon;
 
               return (
                 <div key={agent.name}>
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${agent.bg} ${agent.color}`}>
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${agent.bg} ${agent.color}`}
+                    >
                       <Icon size={17} />
                     </div>
 
@@ -887,11 +926,13 @@ const chartData =
                           {agent.name}
                         </p>
 
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                          agent.status === "Active"
-                            ? "text-emerald-400"
-                            : "text-blue-400"
-                        }`}>
+                        <span
+                          className={`text-[9px] font-bold uppercase tracking-wider ${
+                            agent.status === "Active"
+                              ? "text-emerald-400"
+                              : "text-blue-400"
+                          }`}
+                        >
                           {agent.status}
                         </span>
                       </div>
@@ -913,6 +954,12 @@ const chartData =
                 </div>
               );
             })}
+
+            {dashboardData.agents.length === 0 && (
+              <p className="py-5 text-center text-xs text-slate-500">
+                No agent information is available.
+              </p>
+            )}
           </div>
 
           <div className="border-t border-[#263750] p-4">
@@ -928,19 +975,21 @@ const chartData =
       </div>
 
       {/* SECURITY HEALTH BANNER */}
-      <div className="flex flex-col gap-4 rounded-xl border border-orange-500/20 bg-gradient-to-r from-orange-500/[0.08] to-[#111B2E] p-5 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-orange-500/20 bg-gradient-to-r from-orange-500/[0.08] to-[#111B2E] p-4 sm:flex-row sm:items-center sm:p-5">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-400">
           <ShieldAlert size={24} />
         </div>
 
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-white">
             Security attention required
           </h3>
+
           <p className="mt-1 text-xs leading-5 text-slate-400">
-            The sample workspace contains 10 high-severity findings.
-            Inspect the evidence and suggested remediation before approving
-            affected changes.
+            The sample workspace contains{" "}
+            {severityChartData.find((item) => item.name === "High")?.value || 0}{" "}
+            high-severity findings. Inspect the evidence and suggested
+            remediation before approving affected changes.
           </p>
         </div>
 
@@ -948,10 +997,10 @@ const chartData =
           onClick={() => {
             setSeverityFilter("High");
             document.getElementById("dashboard-findings")?.scrollIntoView({
-              behavior: "smooth"
+              behavior: "smooth",
             });
           }}
-          className="rounded-lg border border-orange-500/30 px-4 py-2.5 text-xs font-semibold text-orange-300 transition hover:bg-orange-500/10"
+          className="w-full shrink-0 rounded-lg border border-orange-500/30 px-4 py-2.5 text-xs font-semibold text-orange-300 transition hover:bg-orange-500/10 sm:w-auto"
         >
           Review high-risk items
         </button>
@@ -961,34 +1010,43 @@ const chartData =
       {selectedPR && (
         <Modal onClose={closeModals}>
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <span className="text-xs font-semibold text-blue-400">
                 PULL REQUEST #{selectedPR.id}
               </span>
-              <h2 className="mt-2 text-xl font-bold text-white">
+
+              <h2 className="mt-2 break-words text-xl font-bold text-white">
                 {selectedPR.title}
               </h2>
+
               <p className="mt-1 text-sm text-slate-400">
                 {selectedPR.repository}
               </p>
             </div>
 
-            <button onClick={closeModals} className="text-slate-500 hover:text-white">
+            <button
+              onClick={closeModals}
+              aria-label="Close pull request details"
+              className="shrink-0 text-slate-500 hover:text-white"
+            >
               <X size={20} />
             </button>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <DetailBox label="Author" value={selectedPR.author} />
             <DetailBox label="Review status" value={selectedPR.status} />
             <DetailBox label="Risk level" value={selectedPR.risk} />
-            <DetailBox label="Findings" value={String(selectedPR.findings)} />
+            <DetailBox
+              label="Findings"
+              value={String(selectedPR.findings)}
+            />
           </div>
 
           <div className="mt-4 rounded-lg border border-[#263750] bg-[#0D1728] p-4">
             <p className="text-xs text-slate-500">Source branch</p>
-            <p className="mt-2 flex items-center gap-2 text-sm text-slate-200">
-              <GitBranch size={15} className="text-blue-400" />
+            <p className="mt-2 flex items-start gap-2 break-all text-sm text-slate-200">
+              <GitBranch size={15} className="shrink-0 text-blue-400" />
               {selectedPR.branch}
             </p>
           </div>
@@ -1019,7 +1077,7 @@ const chartData =
       {selectedFinding && (
         <Modal onClose={closeModals}>
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold text-slate-400">
                   {selectedFinding.id}
@@ -1027,16 +1085,20 @@ const chartData =
                 <RiskBadge risk={selectedFinding.severity} />
               </div>
 
-              <h2 className="mt-3 text-xl font-bold text-white">
+              <h2 className="mt-3 break-words text-xl font-bold text-white">
                 {selectedFinding.title}
               </h2>
 
-              <p className="mt-2 text-xs text-slate-400">
+              <p className="mt-2 break-words text-xs text-slate-400">
                 {selectedFinding.category} · {selectedFinding.repository}
               </p>
             </div>
 
-            <button onClick={closeModals} className="text-slate-500 hover:text-white">
+            <button
+              onClick={closeModals}
+              aria-label="Close finding details"
+              className="shrink-0 text-slate-500 hover:text-white"
+            >
               <X size={20} />
             </button>
           </div>
@@ -1047,7 +1109,8 @@ const chartData =
                 <Eye size={14} className="text-blue-400" />
                 Finding explanation
               </p>
-              <p className="rounded-lg border border-[#263750] bg-[#0D1728] p-3 text-sm leading-6 text-slate-400">
+
+              <p className="break-words rounded-lg border border-[#263750] bg-[#0D1728] p-3 text-sm leading-6 text-slate-400">
                 {selectedFinding.description}
               </p>
             </div>
@@ -1057,8 +1120,9 @@ const chartData =
                 <FileCode2 size={14} className="text-blue-400" />
                 Affected file
               </p>
+
               <div className="rounded-lg border border-[#263750] bg-[#0D1728] p-3">
-                <p className="text-sm text-blue-300">
+                <p className="break-all text-sm text-blue-300">
                   {selectedFinding.file}
                   {selectedFinding.line > 0 && `:${selectedFinding.line}`}
                 </p>
@@ -1070,7 +1134,8 @@ const chartData =
                 <Bug size={14} className="text-orange-400" />
                 Evidence
               </p>
-              <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-orange-500/20 bg-[#090F1C] p-3 text-xs leading-6 text-orange-200">
+
+              <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-orange-500/20 bg-[#090F1C] p-3 text-xs leading-6 text-orange-200">
                 {selectedFinding.evidence}
               </pre>
             </div>
@@ -1080,8 +1145,9 @@ const chartData =
                 <Sparkles size={14} className="text-emerald-400" />
                 Suggested remediation
               </p>
+
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] p-3">
-                <p className="text-sm leading-6 text-slate-300">
+                <p className="break-words text-sm leading-6 text-slate-300">
                   {selectedFinding.recommendation}
                 </p>
               </div>
@@ -1116,11 +1182,15 @@ function RiskBadge({ risk }) {
   const styles = {
     High: "bg-orange-500/10 text-orange-400 border-orange-500/20",
     Medium: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    Low: "bg-blue-500/10 text-blue-400 border-blue-500/20"
+    Low: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   };
 
   return (
-    <span className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-bold ${styles[risk] || styles.Low}`}>
+    <span
+      className={`inline-flex shrink-0 rounded-md border px-2 py-1 text-[10px] font-bold ${
+        styles[risk] || styles.Low
+      }`}
+    >
       {risk}
     </span>
   );
@@ -1128,11 +1198,12 @@ function RiskBadge({ risk }) {
 
 function DetailBox({ label, value }) {
   return (
-    <div className="rounded-lg border border-[#263750] bg-[#0D1728] p-3">
+    <div className="min-w-0 rounded-lg border border-[#263750] bg-[#0D1728] p-3">
       <p className="text-[10px] uppercase tracking-wider text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-white">
+
+      <p className="mt-2 break-words text-sm font-semibold text-white">
         {value}
       </p>
     </div>
@@ -1142,12 +1213,12 @@ function DetailBox({ label, value }) {
 function Modal({ children, onClose }) {
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/75 p-2 backdrop-blur-sm sm:p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="my-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#334155] bg-[#111B2E] p-5 shadow-2xl sm:p-7">
+      <div className="my-auto max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-2xl overflow-y-auto overscroll-contain rounded-xl border border-[#334155] bg-[#111B2E] p-4 shadow-2xl sm:max-h-[90vh] sm:rounded-2xl sm:p-7">
         {children}
       </div>
     </div>

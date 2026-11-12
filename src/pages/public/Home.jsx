@@ -52,7 +52,7 @@ function Home() {
 
             <div className="mt-9 flex flex-wrap gap-4">
               <Link
-                to="/app/dashboard"
+                to="/login"               
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-500"
               >
                 Explore CodeGuardian AI
