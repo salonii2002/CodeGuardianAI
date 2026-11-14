@@ -22,6 +22,11 @@ const HowItWorks = lazy(() => import("./pages/public/HowItWorks"));
 const Security = lazy(() => import("./pages/public/Security"));
 const Technology = lazy(() => import("./pages/public/Technology"));
 const Login = lazy(() => import("./pages/public/Login"));
+const Register = lazy(() => import("./pages/public/Register"));
+const GitHubIntegration = lazy(() => import("./pages/public/GitHubIntegration"));
+const ForgotPassword = lazy(() => import("./pages/public/ForgotPassword"));
+const VerifyEmail = lazy(() => import("./pages/public/VerifyEmail"));
+const ResetPassword = lazy(() => import("./pages/public/ResetPassword"));
 const AuthCallback = lazy(() => import("./pages/public/AuthCallback"));
 const NotFound = lazy(() => import("./pages/public/NotFound"));
 
@@ -40,6 +45,7 @@ const Integrations = lazy(() => import("./pages/app/Integrations"));
 const SimilarityCheck = lazy(() => import("./pages/app/SimilarityCheck"));
 const ActivityLog = lazy(() => import("./pages/app/ActivityLog"));
 const Reports = lazy(() => import("./pages/app/Reports"));
+
 const Team = lazy(() => import("./pages/app/Team"));
 const Settings = lazy(() => import("./pages/app/Settings"));
 
@@ -86,6 +92,11 @@ function App() {
 
           {/* AUTHENTICATION */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/github-integration"element={<GitHubIntegration />}/>
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
 
           {/* PROTECTED APPLICATION */}

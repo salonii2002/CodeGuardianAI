@@ -7,7 +7,9 @@ import {
 
 import { AuthContext } from "./auth-context";
 import { apiRequest, getApiUrl } from "../services/api";
-const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === "true";
+
+const AUTH_ENABLED =
+  import.meta.env.VITE_AUTH_ENABLED === "true";
 
 export function AuthProvider({ children }) {
   const [status, setStatus] = useState(
@@ -19,6 +21,8 @@ export function AuthProvider({ children }) {
 
   const refreshSession = useCallback(async () => {
     if (!AUTH_ENABLED) {
+      setUser(null);
+      setStatus("demo");
       return null;
     }
 
@@ -41,43 +45,49 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-  if (!AUTH_ENABLED) return;
+    if (!AUTH_ENABLED) return;
 
-  let active = true;
+    let active = true;
 
-  apiRequest("/auth/session")
-    .then((data) => {
-      if (!active) return;
+    async function checkSession() {
+      try {
+        const data = await apiRequest("/auth/session");
 
-      setUser(data.user || data);
-      setStatus("authenticated");
-      setAuthError("");
-    })
-    .catch((error) => {
-      if (!active) return;
+        if (!active) return;
 
-      setUser(null);
-      setStatus("unauthenticated");
-      setAuthError(error.message);
-    });
+        setUser(data.user || data);
+        setStatus("authenticated");
+        setAuthError("");
+      } catch (error) {
+        if (!active) return;
 
-  return () => {
-    active = false;
-  };
-}, []);
+        setUser(null);
+        setStatus("unauthenticated");
+        setAuthError(error.message);
+      }
+    }
 
-  function loginWithGitHub() {
+    checkSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const loginWithGitHub = useCallback(() => {
     if (!AUTH_ENABLED) {
       setAuthError(
-        "GitHub sign-in is not connected yet. The backend OAuth endpoint must be enabled first."
+        "GitHub sign-in is not connected yet. Enable the backend OAuth endpoint first."
       );
       return;
     }
 
-    window.location.assign(getApiUrl("/auth/github/login"));
-  }
+    window.location.assign(
+      getApiUrl("/auth/github/login")
+    );
+  }, []);
 
-  async function logout() {
+  const logout = useCallback(async () => {
     if (AUTH_ENABLED) {
       try {
         await apiRequest("/auth/logout", {
@@ -85,12 +95,18 @@ export function AuthProvider({ children }) {
         });
       } catch (error) {
         setAuthError(error.message);
+        return;
       }
     }
 
     setUser(null);
     setStatus(AUTH_ENABLED ? "unauthenticated" : "demo");
-  }
+    setAuthError("");
+  }, []);
+
+  const clearAuthError = useCallback(() => {
+    setAuthError("");
+  }, []);
 
   const value = {
     status,
@@ -100,7 +116,7 @@ export function AuthProvider({ children }) {
     loginWithGitHub,
     refreshSession,
     logout,
-    clearAuthError: () => setAuthError(""),
+    clearAuthError,
   };
 
   return (

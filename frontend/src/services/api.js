@@ -1,7 +1,8 @@
 
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"
-).replace(/\/$/, "");
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:8000"
+).replace(/\/+$/, "");
 
 export function getApiUrl(path) {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -25,7 +26,7 @@ export async function apiRequest(path, options = {}) {
       const data = await response.json();
       message = data.detail || data.message || message;
     } catch {
-      // Keep the default error message when the response is not JSON.
+      // Keep the default error message.
     }
 
     throw new Error(message);

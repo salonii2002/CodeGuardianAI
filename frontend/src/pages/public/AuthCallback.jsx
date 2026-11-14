@@ -1,11 +1,13 @@
 
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
 import {
   CheckCircle2,
   LoaderCircle,
   XCircle,
 } from "lucide-react";
+
 import { useAuth } from "../../context/useAuth";
 
 function AuthCallback() {
@@ -15,10 +17,12 @@ function AuthCallback() {
   const [message, setMessage] = useState(
     "Verifying your GitHub session..."
   );
+
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
+    let redirectTimer;
 
     async function verifyLogin() {
       try {
@@ -29,9 +33,14 @@ function AuthCallback() {
         if (user) {
           setMessage("GitHub account connected successfully.");
 
-          setTimeout(() => {
+          redirectTimer = window.setTimeout(() => {
             if (active) {
-              navigate("/app/dashboard", { replace: true });
+              navigate("/github-integration", {
+                replace: true,
+                state: {
+                  githubOAuthSuccess: true,
+                },
+              });
             }
           }, 900);
         } else {
@@ -54,6 +63,7 @@ function AuthCallback() {
 
     return () => {
       active = false;
+      window.clearTimeout(redirectTimer);
     };
   }, [navigate, refreshSession]);
 
